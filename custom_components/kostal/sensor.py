@@ -241,14 +241,25 @@ class PikoData(Entity):
         self.data = []
         self.ba_data = []
         self.info = None
-        self.async_info_update()
 
     @Throttle(MIN_TIME_BETWEEN_UPDATES)
     async def async_update(self):
         """Update inverter data."""
-        # pylint: disable=protected-access
-        self.data = await self.hass.async_add_executor_job(self.piko._get_raw_content)
-        self.ba_data = await self.hass.async_add_executor_job(self.piko._get_content_of_own_consumption)
+        if self.info is None:
+            try:
+                await self.async_info_update()
+            except (IndexError, Exception) as e:
+                _LOGGER.exception("Error fetching inverter info from Kostal: %s", e)
+        
+        try:
+            # pylint: disable=protected-access
+            self.data = await self.hass.async_add_executor_job(self.piko._get_raw_content)
+            self.ba_data = await self.hass.async_add_executor_job(self.piko._get_content_of_own_consumption)
+        except (IndexError, Exception) as e:
+            _LOGGER.exception("Error fetching data from Kostal inverter: %s", e)
+            self.data = None
+            self.ba_data = None
+            
         _LOGGER.debug(self.data)
         _LOGGER.debug(self.ba_data)
 
